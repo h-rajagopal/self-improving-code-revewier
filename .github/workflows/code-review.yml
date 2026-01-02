@@ -1,0 +1,63 @@
+# Code Review Agent Workflow
+# Triggered on pull request events to review code changes
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ${{ github.workspace }}/.github/scripts/requirements.txt
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **/*.py
+            **/*.js
+            **/*.ts
+            **/*.tsx
+            **/*.jsx
+            **/*.java
+            **/*.go
+            **/*.rs
+            **/*.cpp
+            **/*.c
+            **/*.h
+            **/*.hpp
+
+      - name: Run AI Code Review
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SYSTEM_PROMPT_FILE: ${{ vars.SYSTEM_PROMPT_FILE || '.github/prompts/system_prompt.md' }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          python ${{ github.workspace }}/.github/scripts/code_reviewer.py \
+            --files "${{ steps.changed-files.outputs.all_changed_files }}"
+
